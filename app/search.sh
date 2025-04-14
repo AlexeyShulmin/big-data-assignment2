@@ -1,13 +1,22 @@
 #!/bin/bash
-echo "This script will include commands to search for documents given the query using Spark RDD"
+# search.sh: Launch the query Spark job on YARN and display top 10 results.
 
+# If query is provided as argument(s), use it; otherwise, read from stdin.
+if [ $# -gt 0 ]; then
+    QUERY="$*"
+elif ! [ -t 0 ]; then
+    # if input is piped
+    QUERY="$(cat)"
+else
+    # interactive prompt if no args and no pipe
+    echo -n "Enter search query: "
+    read QUERY
+fi
 
-source .venv/bin/activate
+if [ -z "$QUERY" ]; then
+    echo "No query provided."
+    exit 1
+fi
 
-# Python of the driver (/app/.venv/bin/python)
-export PYSPARK_DRIVER_PYTHON=$(which python) 
-
-# Python of the excutor (./.venv/bin/python)
-export PYSPARK_PYTHON=./.venv/bin/python
-
-spark-submit --master yarn --archives /app/.venv.tar.gz#.venv query.py  $1
+# Run the query Spark job (on YARN) with the query as argument
+spark-submit --master yarn /app/query.py "$QUERY"

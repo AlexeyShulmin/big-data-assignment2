@@ -1,8 +1,7 @@
 #!/bin/bash
-# Start ssh server
+# app.sh: Run the full indexing pipeline and then execute sample search queries.
 service ssh restart 
-
-# Starting the services
+# 1. Start all necessary services
 bash start-services.sh
 
 # Creating a virtual environment
@@ -15,12 +14,14 @@ pip install -r requirements.txt
 # Package the virtual env.
 venv-pack -o .venv.tar.gz
 
-# Collect data
-bash prepare_data.sh
+# 2. Run the indexing pipeline to build the search index
+echo "Running indexing pipeline..."
+bash index.sh
 
-
-# Run the indexer
-bash index.sh data/sample.txt
-
-# Run the ranker
-bash search.sh "this is a query!"
+# 3. Execute a few test queries and show the top 10 results for each
+QUERIES=("big data analytics")
+for query in "${QUERIES[@]}"; do
+    echo ""
+    echo "Query: $query"
+    bash search.sh "$query"
+done
