@@ -21,7 +21,7 @@ hdfs dfs -rm -r -f /index/index_out
 echo "Running Hadoop MapReduce for document statistics..."
 STREAMING_JAR=$(find $HADOOP_HOME/share/hadoop/tools/lib -name 'hadoop-streaming*.jar' | head -n1)
 hadoop jar "$STREAMING_JAR" \
-  -files /user/root/app/mapreduce/mapper1.py,/user/root/app/mapreduce/reducer1.py \
+  -files /app/mapreduce/mapper1.py,/app/mapreduce/reducer1.py \
   -archives /app/.venv.tar.gz \
   -D mapreduce.job.name="DocStatsJob" \
   -D mapreduce.job.reduces=1 \
@@ -34,7 +34,7 @@ hadoop jar "$STREAMING_JAR" \
 echo "Running Hadoop MapReduce for inverted index..."
 # (This job can use multiple reducers to parallelize by term; we'll let Hadoop decide or set a number)
 hadoop jar "$STREAMING_JAR" \
-  -files /user/root/app/mapreduce/mapper2.py,/user/root/app/mapreduce/reducer2.py \
+  -files /app/mapreduce/mapper2.py,/app/mapreduce/reducer2.py \
   -archives /app/.venv.tar.gz \
   -D mapreduce.job.name="IndexJob" \
   -D mapreduce.job.reduces=4 \
