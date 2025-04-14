@@ -10,7 +10,7 @@ unset PYSPARK_PYTHON
 
 # 1. Start the PySpark document preparation job to create /data and /index/data
 echo "Running PySpark document preparation..."
-spark-submit --master yarn /app/prepare_data.py 
+spark-submit --master yarn prepare_data.py 
 # (Adjust the path to prepare_docs.py as needed; here /app is assumed to contain the code)
 
 # 2. Remove any old output directories in HDFS for clean run
@@ -27,8 +27,8 @@ hadoop jar "$STREAMING_JAR" \
   -D mapreduce.job.reduces=1 \
   -input /index/data \
   -output /index/docstats_out \
-  -mapper /user/root/app/mapreduce/mapper1.py \
-  -reducer /user/root/app/mapreduce/reducer1.py
+  -mapper "python3 mapper1.py" \
+  -reducer "python3 reducer1.py"
 
 # 4. Run Hadoop Streaming job for Inverted Index
 echo "Running Hadoop MapReduce for inverted index..."
@@ -40,8 +40,8 @@ hadoop jar "$STREAMING_JAR" \
   -D mapreduce.job.reduces=4 \
   -input /index/data \
   -output /index/index_out \
-  -mapper /user/root/app/mapreduce/mapper2.py \
-  -reducer /user/root/app/mapreduce/reducer2.py
+  -mapper "python3 mapper2.py" \
+  -reducer "python3 reducer2.py"
 
 # 5. Retrieve MapReduce outputs to local for Cassandra loading
 hdfs dfs -get -f /index/docstats_out/part-* docstats_output.txt
