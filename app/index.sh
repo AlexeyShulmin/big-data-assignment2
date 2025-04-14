@@ -10,7 +10,7 @@ unset PYSPARK_PYTHON
 
 # 1. Start the PySpark document preparation job to create /data and /index/data
 echo "Running PySpark document preparation..."
-spark-submit --master yarn /app/prepare_docs.py 
+spark-submit --master yarn /app/prepare_data.py 
 # (Adjust the path to prepare_docs.py as needed; here /app is assumed to contain the code)
 
 # 2. Remove any old output directories in HDFS for clean run
