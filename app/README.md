@@ -1,3 +1,6 @@
+# ADD a.parquet TO THIS FOLDER FOR CODE TO RUN
+Can't add such a big file in Github Repo
+
 ## app folder
 This folder contains the data folder and all scripts and source code that are required to run your simple search engine. 
 
