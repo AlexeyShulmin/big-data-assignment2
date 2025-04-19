@@ -8,14 +8,14 @@ export PYSPARK_DRIVER_PYTHON=$(which python)
 
 unset PYSPARK_PYTHON
 
+hdfs dfs -rm -r -f /index/docstats_out
+hdfs dfs -rm -r -f /index/index_out
+hdfs dfs -rm -r -f /index/data
+
 # 1. Start the PySpark document preparation job to create /data and /index/data
 echo "Running PySpark document preparation..."
 spark-submit --master yarn prepare_data.py 
 # (Adjust the path to prepare_docs.py as needed; here /app is assumed to contain the code)
-
-# 2. Remove any old output directories in HDFS for clean run
-hdfs dfs -rm -r -f /index/docstats_out
-hdfs dfs -rm -r -f /index/index_out
 
 # 3. Run Hadoop Streaming job for Document Statistics (single reducer for total calc)
 echo "Running Hadoop MapReduce for document statistics..."
@@ -45,7 +45,7 @@ hadoop jar "$STREAMING_JAR" \
 
 # 5. Retrieve MapReduce outputs to local for Cassandra loading
 hdfs dfs -get -f /index/docstats_out/part-* docstats_output.txt
-hdfs dfs -get -f /index/index_out/part-* index_output.txt
+hdfs dfs -getmerge /index/index_out/part-* index_output.txt
 
 # 6. Parse document stats output: separate avg/total from individual docs
 AVG_DL=$(grep -P '^AVG_LENGTH\t' docstats_output.txt | cut -f2 | tr -d '\n')
@@ -58,24 +58,9 @@ grep -P '^DF\t' index_output.txt | cut -f2- > vocab.txt      # remove the "DF" p
 
 # 8. Load data into Cassandra keyspace/tables using cqlsh
 echo "Creating keyspace and tables in Cassandra..."
-cqlsh -e "CREATE KEYSPACE IF NOT EXISTS search WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};"
-cqlsh -k search -e "
-   -- Create tables (if not exist)
-   CREATE TABLE IF NOT EXISTS doc_stats (doc_id text PRIMARY KEY, title text, length int);
-   CREATE TABLE IF NOT EXISTS inverted_index (term text, doc_id text, tf int, PRIMARY KEY (term, doc_id));
-   CREATE TABLE IF NOT EXISTS vocab (term text PRIMARY KEY, doc_freq int);
-   CREATE TABLE IF NOT EXISTS meta (key text PRIMARY KEY, value text);
-"
-
 echo "Inserting index data into Cassandra..."
-# Bulk load postings (term, doc_id, tf) into inverted_index
-cqlsh -k search -e "COPY inverted_index(term, doc_id, tf) FROM 'postings.txt' WITH DELIMITER='\t';"
-# Bulk load vocabulary (term, doc_freq) into vocab
-cqlsh -k search -e "COPY vocab(term, doc_freq) FROM 'vocab.txt' WITH DELIMITER='\t';"
-# Bulk load document stats (doc_id, title, length) into doc_stats
-cqlsh -k search -e "COPY doc_stats(doc_id, title, length) FROM 'doc_lengths.txt' WITH DELIMITER='\t';"
-# Insert meta information (total_docs and avg_dl)
-cqlsh -k search -e "INSERT INTO meta(key, value) VALUES ('total_docs', '${TOTAL_DOCS}');
-                    INSERT INTO meta(key, value) VALUES ('avg_dl', '${AVG_DL}');"
+export AVG_DL
+export TOTAL_DOCS
+python3 /app/load_index.py
 
 echo "Indexing pipeline completed successfully."

@@ -19,4 +19,4 @@ if [ -z "$QUERY" ]; then
 fi
 
 # Run the query Spark job (on YARN) with the query as argument
-spark-submit --master yarn /app/query.py "$QUERY"
+spark-submit --master yarn --packages com.datastax.spark:spark-cassandra-connector_2.12:3.3.0 /app/query.py "$QUERY" | grep -v ' INFO '

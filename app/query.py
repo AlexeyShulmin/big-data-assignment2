@@ -3,12 +3,13 @@
 query.py: Spark-based query engine that uses BM25 to rank documents.
 Reads a query from stdin or argument, retrieves relevant postings from Cassandra, and prints top 10 doc IDs and titles.
 """
+import re
 import sys, math
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 # Initialize SparkSession with Cassandra connector support
-spark = SparkSession.builder.appName("QueryEngine").config("spark.cassandra.connection.host", "cassandra").config("spark.jars.packages", "com.datastax.spark:spark-cassandra-connector_2.12:3.3.0").getOrCreate()
+spark = SparkSession.builder.appName("QueryEngine").config("spark.cassandra.connection.host", "cassandra-server").config("spark.cassandra.connection.port", "9042").config("spark.jars.packages", "com.datastax.spark:spark-cassandra-connector_2.12:3.3.0").getOrCreate()
 
 # Read query from stdin if not provided as argument
 if len(sys.argv) > 1:
@@ -21,13 +22,7 @@ if not query_text:
     sys.exit(0)
 
 # Clean the query similar to docs (lowercase, remove non-alphanumeric, split into terms)
-query_text_clean = F.regexp_replace(F.lower(F.lit(query_text)), "[^a-z0-9\\s]", " ")
-query_text_clean = F.regexp_replace(query_text_clean, "\\s+", " ")
-# Materialize cleaned text and split into terms
-query_terms = query_text_clean.collect()[0][0].split() if isinstance(query_text_clean, F.Column) \
-              else str(query_text_clean).split()
-# If the above is overly complex, simply do:
-# query_terms = [t for t in re.sub(r'[^a-z0-9\s]', ' ', query_text.lower()).split() if t]
+query_terms = [t for t in re.sub(r'[^a-z0-9\s]', ' ', query_text.lower()).split() if t]
 
 if not query_terms:
     print("No valid query terms.")
@@ -72,16 +67,11 @@ def compute_score(row):
     tf = row['tf']
     doc_len = row['length']
     title = row['title']
-    # Get document frequency from broadcasted vocab map (default 0 if term not found)
     df = vocab_bcast.value.get(term, 0)
     if df == 0:
-        return None  # term not in index (shouldn't happen for terms we queried)
-    # BM25 scoring formula:
-    # IDF component&#8203;:contentReference[oaicite:0]{index=0}:
-    # idf = log(1 + (N - df + 0.5) / (df + 0.5))
+        return None
     N = params_bcast.value['N']
     idf = math.log(1 + (N - df + 0.5) / (df + 0.5))
-    # Term frequency normalization&#8203;:contentReference[oaicite:1]{index=1}:
     k1 = params_bcast.value['k1']
     b = params_bcast.value['b']
     avg_dl = params_bcast.value['avg_dl']
@@ -105,4 +95,4 @@ top10 = doc_scores.takeOrdered(10, key=lambda item: -item[1][1])
 
 # Print top 10 results: doc_id and title
 for rank, (doc_id, (title, score)) in enumerate(top10, start=1):
-    print(f"{doc_id}\t{title}")
+    print(f"{rank}\t{doc_id}\t{title}\t{score}")

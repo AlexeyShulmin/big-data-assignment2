@@ -19,7 +19,7 @@ echo "Running indexing pipeline..."
 bash index.sh
 
 # 3. Execute a few test queries and show the top 10 results for each
-QUERIES=("big data analytics")
+QUERIES=("big data analytics" "machine learning model" "distributed database")
 for query in "${QUERIES[@]}"; do
     echo ""
     echo "Query: $query"
