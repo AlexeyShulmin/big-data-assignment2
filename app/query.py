@@ -28,7 +28,7 @@ if not query_terms:
     print("No valid query terms.")
     sys.exit(0)
 
-# **Fetch global stats from meta table** (total docs, average doc length):
+# Fetch global stats from meta table (total docs, average doc length):
 meta_df = spark.read.format("org.apache.spark.sql.cassandra") \
     .options(keyspace="search", table="meta").load() \
     .filter(F.col("key").isin("total_docs", "avg_dl"))
@@ -37,13 +37,13 @@ meta = {row['key']: row['value'] for row in meta_df.collect()}
 N = float(meta.get("total_docs", "0"))
 avg_dl = float(meta.get("avg_dl", "0"))
 
-# **Fetch document frequency for each query term** from vocab table (to compute IDF):
+# Fetch document frequency for each query term from vocab table (to compute IDF):
 vocab_df = spark.read.format("org.apache.spark.sql.cassandra") \
     .options(keyspace="search", table="vocab").load() \
     .filter(F.col("term").isin(query_terms))
 vocab_map = {row['term']: row['doc_freq'] for row in vocab_df.collect()}
 
-# **Fetch postings for query terms** from inverted_index table:
+# Fetch postings for query terms from inverted_index table:
 # Only retrieve rows where term is in the query set
 postings_df = spark.read.format("org.apache.spark.sql.cassandra") \
     .options(keyspace="search", table="inverted_index").load() \
@@ -55,7 +55,7 @@ docstats_df = spark.read.format("org.apache.spark.sql.cassandra") \
 postings_joined = postings_df.join(docstats_df, on="doc_id")
 
 # Convert to RDD for scoring
-posts_rdd = postings_joined.rdd  # RDD of Rows: each has doc_id, term, tf, title, length
+posts_rdd = postings_joined.rdd
 # Broadcast BM25 parameters and vocab map for efficiency
 bm25_params = {'k1': 1.2, 'b': 0.75, 'N': N, 'avg_dl': avg_dl}
 vocab_bcast = spark.sparkContext.broadcast(vocab_map)
@@ -83,8 +83,6 @@ def compute_score(row):
 scores_rdd = posts_rdd.map(compute_score).filter(lambda x: x is not None)
 # Reduce by doc_id to sum scores of multiple terms in the same document
 def merge_scores(x, y):
-    # x and y are tuples (title, partial_score)
-    # Title should be same for same doc_id, so we can take either
     return (x[0] if x[0] else y[0], x[1] + y[1])
 
 doc_scores = scores_rdd.reduceByKey(merge_scores)
@@ -93,6 +91,6 @@ doc_scores = scores_rdd.reduceByKey(merge_scores)
 # Use takeOrdered with negative score for descending sort
 top10 = doc_scores.takeOrdered(10, key=lambda item: -item[1][1])
 
-# Print top 10 results: doc_id and title
+# Print top 10 results
 for rank, (doc_id, (title, score)) in enumerate(top10, start=1):
     print(f"{rank}\t{doc_id}\t{title}\t{score}")

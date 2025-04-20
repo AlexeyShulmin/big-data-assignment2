@@ -14,13 +14,11 @@ from tqdm import tqdm
 
 spark = SparkSession.builder.appName("DocumentPrep").master("local").config("spark.sql.parquet.enableVectorizedReader", "true").getOrCreate()
 
-# **1. Read input Parquet file** (adjust the path and column names as needed for the actual dataset)
-# Assuming the Parquet has columns: id, title, text
+# 1. Read input Parquet file
 df = spark.read.parquet("/user/root/app/a.parquet")
-# Select at least 1000 documents (take first 1000 for example)
-docs_df = df.select("id", "title", "text").limit(1000)
+docs_df = df.select("id", "title", "text").limit(100)
 
-# **2. Clean document text and titles**: remove non-alphanumeric characters, convert to lowercase, normalize whitespace.
+# 2. Clean document text and titles: remove non-alphanumeric characters, convert to lowercase, normalize whitespace.
 docs_df = docs_df.withColumn(
     "clean_text", 
     F.regexp_replace(F.lower(F.col("text")), "[^a-z0-9\\s]", " ")
@@ -34,10 +32,9 @@ docs_df = docs_df.withColumn(
     "clean_title",
     F.regexp_replace(F.col("title"), "[\\t\\n]", " ")
 )
-# Note: Titles are not lowercased or stripped of punctuation here to keep them readable, but tabs/newlines are removed.
 
-# **3. Write documents to HDFS /data as individual .txt files**:
-docs = docs_df.select("id", "clean_title", "clean_text").collect()  # collect 1000 docs (safe given 1000 is small)
+# 3. Write documents to HDFS /data as individual .txt files
+docs = docs_df.select("id", "clean_title", "clean_text").collect()
 os.system("hdfs dfs -mkdir -p /data")  # ensure /data directory exists in HDFS
 for row in tqdm(docs):
     doc_id = row["id"]
@@ -50,13 +47,11 @@ for row in tqdm(docs):
         f.write(text if text is not None else "")
     # Put the file to HDFS /data (overwrite if exists)
     os.system(f"hdfs dfs -put -f {filename} /data/")
-    os.remove(filename)  # optional: remove local temp file after upload
+    os.remove(filename)
 
-# **4. Save unified documents RDD to HDFS /index/data**:
+# 4. Save unified documents RDD to HDFS /index/data
 docs_rdd = spark.sparkContext.parallelize(docs) \
     .map(lambda row: f"{row['id']}\t{row['clean_title']}\t{row['clean_text']}")
-# Coalesce to a single partition if desired, so that output is one file (optional):
-# docs_rdd = docs_rdd.coalesce(1)
 docs_rdd.saveAsTextFile("/index/data")
 
 spark.stop()
