@@ -16,7 +16,7 @@ spark = SparkSession.builder.appName("DocumentPrep").master("local").config("spa
 
 # 1. Read input Parquet file
 df = spark.read.parquet("/user/root/app/a.parquet")
-docs_df = df.select("id", "title", "text").limit(100)
+docs_df = df.select("id", "title", "text").limit(1000)
 
 # 2. Clean document text and titles: remove non-alphanumeric characters, convert to lowercase, normalize whitespace.
 docs_df = docs_df.withColumn(
