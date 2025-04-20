@@ -1,3 +1,6 @@
+# ADD a.parquet TO THIS FOLDER FOR CODE TO RUN
+Can't add such a big file in Github Repo
+
 # big-data-assignment2-2025
 
 # How to run
